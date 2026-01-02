@@ -10,16 +10,6 @@ MONITOR_SCRIPT = "guard_monitor.py"
 PID_FILE = "guard_monitor.pid"
 SAFE_MODE_FILE = "developer_mode.lock"
 VENV_PYTHON = "./venv/bin/python3"
-ENV_FILE = ".env.sovereign"
-
-def get_secret():
-    """Reads the sovereign secret from the env file."""
-    if os.path.exists(ENV_FILE):
-        with open(ENV_FILE, 'r') as f:
-            for line in f:
-                if line.startswith('SOVEREIGN_SECRET='):
-                    return line.split('=', 1)[1].strip()
-    return None
 
 def get_pid():
     if os.path.exists(PID_FILE):
@@ -106,17 +96,11 @@ def status():
             print("⚠️  Config: Developer Mode ENABLED (Will not kill on start)")
 
 def dev_mode():
-    secret = get_secret()
-    if not secret:
-        print("[!] Error: SOVEREIGN_SECRET not found in .env.sovereign. Run setup.sh.")
-        return
-
     if not os.path.exists(SAFE_MODE_FILE):
         with open(SAFE_MODE_FILE, 'w') as f:
-            # Write the secret to the lock file as a signature
-            f.write(secret)
+            f.write(str(time.time()))
         print("⚠️  [DEVELOPER MODE ENABLED]")
-        print("    Auto-Kill defense disabled. Authorization signature verified.")
+        print("    Auto-Kill defense disabled. You may now debug your browser.")
     else:
         print("[-] Developer mode is already active.")
 

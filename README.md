@@ -1,166 +1,93 @@
-# Sovereign Guard Suite
+# 🛡️ Sovereign Guard Suite (2026 Edition)
 
-## Overview
-Sovereign Guard is a **read-only monitoring system** designed to detect browser session hijacking attempts on your local machine. It **does not interfere** with your active Chrome sessions, tabs, or browsing activity—it only watches for malicious processes attempting to exploit your browser.
+> **"Your hardware is secure, but is your session?"**
 
-## What This Protects Against
+Sovereign Guard is a high-fidelity, zero-trust security perimeter designed to protect modern workstations against the 2026 threat landscape. While 2024-era protections like **Device Bound Session Credentials (DBSC)** secured cookies to hardware, they left a massive blind spot: **Local Environment Exploitation.**
 
-### Chrome's Device Bound Session Credentials (DBSC) - And Its Gaps
+Sovereign Guard fills that gap by monitoring the integrity of your browser's execution and the sanctity of your clipboard.
 
-In 2024-2025, Google introduced **Device Bound Session Credentials (DBSC)** to combat session theft. DBSC binds your login sessions to your specific hardware, making stolen cookies useless on another machine.
+---
 
-**However, DBSC has critical gaps:**
+## ⚡️ The 2026 Threat Landscape
 
-1. **Remote Debugging Bypass**: Attackers can launch Chrome with `--remote-debugging-port` on *your own machine* to bypass hardware binding and extract live session tokens.
-2. **Malicious Extensions**: Extensions loaded via `--load-extension` can intercept credentials before DBSC protects them.
-3. **Local Privilege Escalation**: Malware running locally can spawn Chrome instances that inherit your hardware signature but operate under attacker control.
+In 2026, account hijacking has evolved beyond simple cookie theft. Attackers now leverage:
 
-**Sovereign Guard closes these gaps** by detecting when Chrome is launched with these exploit flags—something DBSC cannot prevent on its own.
+### 1. DBSC "Inside-Out" Bypasses
+DBSC binds your session to your TPM/Secure Enclave. However, malware running on your machine can launch a **legitimate, hardware-signed browser** with `--remote-debugging-port`. The session is "securely bound" to your machine, but the attacker controls it remotely via the DevTools Protocol.
 
-## How It Works (Non-Invasive Monitoring)
+### 2. Advanced Clipboard "Clippers"
+Sophisticated malware now monitors your clipboard in real-time. When it detects a high-value address (BTC/ETH) or a sensitive command (`curl | bash`), it swaps the content in the milliseconds between **Copy** and **Paste**.
 
-### Read-Only Process Scanning
-The monitor uses `psutil` to **read** the list of running processes and their command-line arguments. It does **not**:
-- Modify any processes
-- Inject code into Chrome
-- Access your browsing data
-- Interfere with active tabs or sessions
-- Require admin/root privileges
+### 3. "Ghost" Browser Spoofing
+Malware replaces your standard browser binaries with "Ghost" versions or launches browsers from hidden directories (`/tmp/.chrome`) that look identical to the user but navigate through malicious proxies.
 
-### What It Detects
-When a Chrome process starts with dangerous flags, the monitor:
-1. **Logs the event** to `guard_monitor.log`
-2. **Sends a desktop notification** with threat details
-3. **Runs automatic diagnostics**:
-   - Scans for suspicious LaunchAgents
-   - Checks for active remote debugging ports
-   - Lists recent app installations
+---
 
-### Your Active Sessions Are Safe
-- **Normal Chrome usage**: Completely unaffected. Browse, login, use extensions as usual.
-- **Existing tabs**: Never touched or modified.
-- **Cookies/sessions**: Not accessed or read by the monitor.
-- **Performance**: Minimal CPU usage (checks every 2 seconds).
+## 🛡️ Mitigation Strategies
 
-## The Session Theft Attack Vector
+Sovereign Guard neutralizes these threats through multi-layered, low-latency monitoring.
 
-### How Attackers Exploit DBSC Gaps
+### 🏗️ Execution Integrity (Anti-Hijack)
+*   **Flag Neutralization**: Kills any browser process launched with dangerous flags (`--remote-debugging-port`, `--load-extension`) that allow external control or unvetted code execution.
+*   **Path Enforcement**: Rejects any browser binary running from untrusted locations. Chrome must run from `/Applications/` or it is considered a compromise.
+*   **Origin Tracing**: Every event logs the **Parent Process**, unmasking the hidden scripts or agents that attempted the launch.
 
-Even with DBSC enabled, an attacker with local access (via malware, phishing, or supply chain attack) can:
+### 📋 Clipboard Sentry (Anti-Virus)
+*   **Strict Neutralization**: Detects and overwrites "Instructional Threats" (command injections like `curl | bash`) and "Script Droppers" (`eval(atob)`) the moment they enter the clipboard.
+*   **Swap-Mode Protection**: Actively monitors financial addresses. If a background process attempts to swap your copied BTC address for an attacker's, the system detects the delta and resets it to a safety warning.
+*   **Exposure Prevention**: Alerts you if sensitive keys (RSA, AWS Secrets) are copied while suspicious background activity is detected.
 
+### 🧠 Zero-Trust Diagnostics
+When a threat is neutralized, the system automatically initiates a deep-dive audit:
+*   **Persistence Audit**: Scans `~/Library/LaunchAgents` for malicious persistence.
+*   **Network Sentry**: Scans for listening debugger ports that bypassed process checks.
+*   **Malware Pulse**: Triggers an automated `clamscan` of high-risk directories (`~/Downloads`, `/tmp`).
+
+---
+
+## 🚀 Installation & Setup
+
+### 1. Configure Your Secret
+Sovereign Guard uses a secret key to authorize "Safe Mode" and prevent malware from disabling the monitor.
 ```bash
-# Attacker launches Chrome with remote debugging on YOUR machine
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir=/tmp/stolen-profile
+cp .env.example .env.sovereign
+# Edit .env.sovereign and set a strong SOVEREIGN_SECRET
+nano .env.sovereign
 ```
 
-This allows them to:
-- **Bypass DBSC**: The process runs on your hardware, so DBSC sees it as legitimate.
-- **Extract live sessions**: Use Chrome DevTools Protocol to dump cookies, tokens, and credentials.
-- **Hijack accounts**: Replay your sessions on their own machine (DBSC can't distinguish the source).
-
-**Sovereign Guard detects this immediately** and alerts you before damage occurs.
-
-## Installation & Usage
-
-### Quick Start
+### 2. Run the Initializer
+The setup script creates a Python virtual environment, installs dependencies, and configures the macOS LaunchAgent.
 ```bash
-cd /Users/nicholasmacaskill/Desktop/python-sovereign-guard/
 ./setup.sh
 ```
 
-## ⚡️ Quick Controls
-
-We've included a simple CLI tool called `sovereign` to manage everything.
-
-### Start the Monitor
-```bash
-./sovereign start
-# Checks status
-./sovereign status
-```
-
-### Instant Security Audit
-Want to check your system right now without starting the background monitor?
+### 3. Verify OS Hardening
+Run the audit tool to ensure your macOS settings are optimized.
 ```bash
 ./sovereign scan
 ```
-*Returns ✅ SECURE or ❌ COMPROMISED.*
 
-### 📋 Clipboard Sentry (Crypto Protection)
-The monitor now watches for "Clipboard Hijacking"—where malware replaces a Bitcoin or Ethereum address you've copied with the attacker's address.
-*   **Protection**: Real-time monitoring of crypto address patterns.
-*   **Response**: Immediate vocal warning and log alert if a replacement is detected.
+---
 
-### Developer Mode (Safe Mode)
-Need to debug your own browser? Enable Safe Mode to prevent the monitor from killing your process.
-```bash
-# Disable Auto-Kill (Safe to debug)
-./sovereign dev
+## ⚡️ Quick Controls
 
-# Re-arm Auto-Kill (Secure Perimeter)
-./sovereign secure
-```
+Use the `sovereign` CLI to manage your perimeter.
 
-### Stop the Monitor
-```bash
-./sovereign stop
-```
+| Command | Action |
+| :--- | :--- |
+| `./sovereign start` | Launch the background monitor |
+| `./sovereign status` | View perimeter health and active mode |
+| `./sovereign dev` | Enable **Safe Mode** (Suspends auto-kill for debugging) |
+| `./sovereign secure`| Re-arm the **Active Defense** |
+| `./sovereign scan` | Perform a one-time security audit |
+| `./sovereign stop` | Disable the monitor |
 
-## Alert Response
+---
 
-When you receive a **"CRITICAL: BROWSER HIJACK RISK"** notification:
+## 📜 Technical Details & Logs
 
-1.  **Immediate**: The system has *already* killed the process.
-2.  **Investigate**: Check `guard_monitor.log` for the "Origin" trace.
-3.  **Scan**: The system has *already* started a malware scan.
-
-## Peace of Mind Guarantees
-
-✅ **No Session Interference**: Your active Chrome sessions remain untouched  
-✅ **No Data Access**: The monitor never reads cookies, passwords, or browsing history  
-✅ **No Performance Impact**: Lightweight scanning with minimal resource usage  
-✅ **No Admin Required**: Runs with standard user permissions  
-✅ **Open Source**: All code is visible and auditable in this repository  
-
-## Additional Security Tools
-
-### OS Hardening Audit
-Check your system's security posture:
-```bash
-./venv/bin/python3 audit_system.py
-```
-
-Verifies:
-- macOS Lockdown Mode status
-- DBSC support in your browser
-- Core Isolation (Windows) / HVCI settings
-
-### Authentication Policy (For Developers)
-If you're building web applications, use the included `auth_middleware.ts` to enforce hardware-key-only authentication (FIDO2/WebAuthn) and block SMS/TOTP for admin routes.
-
-## Technical Details
-
-### Monitored Flags
-- `--remote-debugging-port`: Enables Chrome DevTools Protocol access
-- `--load-extension`: Loads unpacked extensions (common malware vector)
-
-### Diagnostic Checks (Automatic)
-- **LaunchAgents**: Scans `~/Library/LaunchAgents/` for Chrome-related persistence
-- **Network Ports**: Detects listening debugger ports (9222, 1337, etc.)
-- **Recent Installs**: Lists apps installed in the last 7 days
-
-### Log Files
-- `guard_monitor.log`: All detections and diagnostics
-- `guard_monitor.err`: Error output (if running as LaunchAgent)
-
-## Why This Matters
-
-DBSC is a major step forward, but it assumes attackers only steal cookies remotely. **Local exploitation** remains a blind spot. Sovereign Guard fills that gap by detecting when your own machine is being used against you.
-
-## Support & Contribution
-
-This is a security tool built for transparency. Review the code, suggest improvements, or report issues.
+*   **Logs**: Audit-trail is stored in `guard_monitor.log` and `guard_monitor.out`.
+*   **Remediation**: Uses terminal `pkill` and macOS `say` for instant feedback.
+*   **Voice**: Provides vocal alerts via the macOS "Samantha" voice for hands-free threat awareness.
 
 **Stay Sovereign. Stay Secure.**

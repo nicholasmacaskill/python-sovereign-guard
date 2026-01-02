@@ -82,6 +82,11 @@ EOF
 echo "    [INFO] Created plist at $PLIST_PATH"
 echo "    [NOTE] To activate, run: launchctl load $PLIST_PATH"
 
+echo "[*] Installing Command Line Interface..."
+cp sovereign_ctl.py sovereign
+chmod +x sovereign
+echo "    [PASS] CLI installed as './sovereign'"
+
 echo "==========================================="
 echo "   Setup Complete.                         "
 echo "   Run './venv/bin/python3 audit_system.py' to verify OS."

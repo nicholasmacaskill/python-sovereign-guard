@@ -45,10 +45,37 @@ SAFE_LIST_PROCESSES = [
     'cfprefsd', 'taskgated', 'tccd', 'useractivityd', 'lsd'
 ] # Processes allowed to spawn tools and system tasks
 
+# Hardened Path Validation
+SAFE_BROWSER_PATHS = [
+    '/Applications/',
+    '/System/Applications/',
+    '/usr/bin/',
+    '/usr/local/bin/'
+]
+
 # Crypto Patterns for Clipboard Sentry
 BTC_PATTERN = r'\b(?:[13][a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[ac-hj-np-z02-9]{11,71})\b'
 ETH_PATTERN = r'\b0x[a-fA-F0-9]{40}\b'
-CRYPTO_RE = re.compile(f"{BTC_PATTERN}|{ETH_PATTERN}")
+CRYPTO_RE = re.compile(f"({BTC_PATTERN})|({ETH_PATTERN})")
+
+# General Malware / Virus Patterns
+CMD_INJECTION_PATTERN = r'(?:curl|wget|sh|bash|zsh|python\d*|perl\d*|php\d*|ruby\d*|node)\b.*[|;&].*'
+MALICIOUS_JS_PATTERN = r'eval\(atob\(.*\)\)|String\.fromCharCode\(.*\)|unescape\('
+SENSITIVE_KEY_PATTERN = r'-----BEGIN (?:RSA|OPENSSH) PRIVATE KEY-----|AKIA[A-Z0-9]{16}|[0-9a-f]{64}'
+URL_SPOOF_PATTERN = r'https?://[^\s]+@|[^\s]+\.(zip|mov|app|scr)\b'
+
+# Combined Threat Detection
+THREAT_PATTERNS = {
+    "CRYPTO_SWAP": CRYPTO_RE,
+    "CMD_INJECTION": re.compile(CMD_INJECTION_PATTERN, re.IGNORECASE),
+    "MALICIOUS_SCRIPT": re.compile(MALICIOUS_JS_PATTERN, re.IGNORECASE),
+    "SENSITIVE_EXPOSURE": re.compile(SENSITIVE_KEY_PATTERN),
+    "URL_SPOOF": re.compile(URL_SPOOF_PATTERN, re.IGNORECASE)
+}
+
+# Neutralization Strategy
+STRICT_MODE_THREATS = ["CMD_INJECTION", "MALICIOUS_SCRIPT", "URL_SPOOF"] # Neutralize on introduction
+SWAP_MODE_THREATS = ["CRYPTO_SWAP"] # Neutralize only on mismatch replacement
 
 # Security Configuration
 AUTO_MALWARE_SCAN = True  # Set to False to disable automatic scanning
@@ -57,6 +84,16 @@ SCAN_PATHS = [
     os.path.expanduser('~/Library/LaunchAgents'),
     '/tmp'
 ]
+ENV_FILE = ".env.sovereign"
+
+def get_secret():
+    """Reads the sovereign secret from the env file."""
+    if os.path.exists(ENV_FILE):
+        with open(ENV_FILE, 'r') as f:
+            for line in f:
+                if line.startswith('SOVEREIGN_SECRET='):
+                    return line.split('=', 1)[1].strip()
+    return None
 
 def notify_alert(title, message):
     """Triggers a desktop notification."""
@@ -169,7 +206,7 @@ def run_malware_scan():
     return scan_results
 
 def check_process(proc, safe_mode=False):
-    """Checks a single process for dangerous flags.
+    """Checks a single process for dangerous flags and PATH INTEGRITY.
     
     Args:
         proc: The psutil process object
@@ -179,7 +216,18 @@ def check_process(proc, safe_mode=False):
         cmdline = proc.cmdline()
         pid = proc.pid
         name = proc.name()
+        exe_path = proc.exe() or ""
         
+        # INTEGRITY CHECK: Is this browser running from a safe location?
+        name_lower = name.lower()
+        is_browser = any(t in name_lower for t in ['chrome', 'brave', 'edge', 'arc', 'opera', 'vivaldi', 'chromium'])
+        
+        spoof_detected = False
+        if is_browser and exe_path:
+            # If it's not in a standard application folder, it's a likely hijack/spoof
+            if not any(exe_path.startswith(safe) for safe in SAFE_BROWSER_PATHS):
+                spoof_detected = True
+
         # Origin Tracing: Identify Parent Process
         try:
             parent = proc.parent()
@@ -191,6 +239,10 @@ def check_process(proc, safe_mode=False):
         
         critical_detected = []
         suspicious_detected = []
+        
+        if spoof_detected:
+            critical_detected.append("UNSAFE EXECUTABLE PATH (SPOOFING RISK)")
+            
         for arg in cmdline:
             for flag in CRITICAL_FLAGS:
                 if arg.startswith(flag):
@@ -203,38 +255,35 @@ def check_process(proc, safe_mode=False):
         
         if detected_flags:
             # Run automatic diagnostics
-            diagnostics = run_threat_diagnostics()
+            log_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            summary_msg = f"SECURITY ALERT: Process '{name}' (PID: {pid}) detected with flags: {', '.join(detected_flags)}"
             
-            # Run malware scan if enabled
-            malware_scan_results = []
-            if AUTO_MALWARE_SCAN:
-                logging.info("Initiating automatic malware scan...")
-                malware_scan_results = run_malware_scan()
+            actionable_msg = f"\n{'='*60}\n"
+            actionable_msg += f"!!! SOVEREIGN GUARD ALERT !!!\n"
+            actionable_msg += f"{'='*60}\n"
+            actionable_msg += f"Process: '{name}' (PID: {pid})\n"
+            actionable_msg += f"Path: '{exe_path}'\n"
+            actionable_msg += f"Origin: {origin_info}\n"
+            actionable_msg += f"Threat Detection: {', '.join(detected_flags)}\n"
             
-            # Enhanced Alert Messaging
-            risk_title = "CRITICAL: BROWSER HIJACK RISK"
-            summary_msg = f"Chrome detected with INSECURE flags: {', '.join(detected_flags)}"
+            if spoof_detected:
+                 actionable_msg += f"\n🚨 CRITICAL: SPOOFING ATTEMPT! Process is not running from a trusted path.\n"
             
-            # Detailed actionable advice for the log
-            actionable_msg = (
-                f"\n{'='*60}\n"
-                f"!!! SOVEREIGN GUARD ALERT !!!\n"
-                f"{'='*60}\n"
-                f"Process: '{name}' (PID: {pid})\n"
-                f"Origin: {origin_info}\n"
-                f"Threat Detection: {', '.join(detected_flags)}\n"
-                f"\nAUTOMATIC DIAGNOSTICS:\n"
-            )
-            
+            # 1. Run Diagnostics (Internal functions)
+            actionable_msg += f"\nAUTOMATIC DIAGNOSTICS:\n"
+            diagnostics = run_threat_diagnostics() # Use existing diagnostics function
             if diagnostics:
                 for finding in diagnostics:
                     actionable_msg += f"  {finding}\n"
             else:
                 actionable_msg += "  ✓ No additional threats detected\n"
             
-            # Add malware scan results
-            if malware_scan_results:
+            # 2. Run Malware Scan (if configured)
+            malware_scan_results = []
+            if AUTO_MALWARE_SCAN:
+                logging.info("Initiating automatic malware scan...")
                 actionable_msg += f"\nMALWARE SCAN RESULTS:\n"
+                malware_scan_results = run_malware_scan()
                 for result in malware_scan_results:
                     actionable_msg += f"  {result}\n"
             
@@ -244,7 +293,11 @@ def check_process(proc, safe_mode=False):
                     proc.kill()
                     actionable_msg += f"\n⚡️ THREAT AUTOMATICALLY NEUTRALIZED (Process Killed)\n"
                     summary_msg += " [NEUTRALIZED]"
-                    speak("Critical threat detected. Insecure browser instance neutralized.")
+                    
+                    if spoof_detected:
+                        speak("Integrity breach detected. Hostile browser spoof neutralized.")
+                    else:
+                        speak("Critical threat detected. Insecure browser instance neutralized.")
                 except Exception as e:
                     actionable_msg += f"\n❌ Failed to auto-kill process: {e}\nIMMEDIATE ACTION REQUIRED: kill -9 {pid}\n"
                     speak("Threat detected. Manual intervention required.")
@@ -260,7 +313,7 @@ def check_process(proc, safe_mode=False):
             actionable_msg += f"{'='*60}\n"
             
             print(actionable_msg)
-            logging.warning(f"{risk_title} - {summary_msg} - PID: {pid}")
+            logging.warning(summary_msg)
             
             # Send the user-facing notification with diagnostic summary
             notification_msg = f"{summary_msg}\nPID: {pid}\n"
@@ -300,8 +353,21 @@ def check_network_sentry():
     return None
 
 def check_safe_mode():
-    """Checks if Developer Mode is active (prevents auto-kill)."""
-    return os.path.exists(SAFE_MODE_FILE)
+    """Checks if Developer Mode is active and VERIFIES the authorization secret."""
+    if not os.path.exists(SAFE_MODE_FILE):
+        return False
+        
+    try:
+        secret = get_secret()
+        if not secret:
+            return False # No secret set, cannot verify
+            
+        with open(SAFE_MODE_FILE, 'r') as f:
+            # Match secret to ensure malware didn't create the lock
+            sig = f.read().strip()
+            return sig == secret
+    except:
+        return False
 
 def get_clipboard_content():
     """Gets current clipboard content using pbpaste on macOS."""
@@ -349,14 +415,15 @@ def audit_clipboard_hijacker():
                 if exe.startswith('/System/') or exe.startswith('/usr/lib/') or exe.startswith('/usr/bin/'):
                     continue
 
-                # If launched in the last 300 seconds (5 mins) and not a common app
-                if (current_time - p_info['create_time']) < 300:
-                    # Very suspicious if it's a python script or a hidden binary
-                    if 'python' in name.lower() or name.startswith('.'):
+                # If launched in the last 600 seconds (10 mins) and not a common app
+                if (current_time - p_info['create_time']) < 600:
+                    # Very suspicious if it's a python script, hidden binary, or has 'clipboard'/'copy' in name
+                    name_low = name.lower()
+                    if any(k in name_low for k in ['python', 'paste', 'clipboard', 'copy', 'hijack']) or name.startswith('.'):
                         culprits.append(proc)
                     else:
                         # Add to potential list if it's a non-standard path
-                        if '/Users/' in exe:
+                        if '/Users/' in exe and '/Applications/' not in exe:
                             culprits.append(proc)
             except:
                 continue
@@ -383,36 +450,62 @@ def audit_clipboard_hijacker():
     return "No clear culprit found. Full malware scan recommended."
 
 def check_clipboard_sentry(last_val):
-    """Monitors for suspicious crypto address replacement and NEUTRALIZES the threat."""
+    """Monitors for suspicious clipboard content and NEUTRALIZES threats.
+    
+    This expanded sentry handles both 'Swap Mode' (crypto address changes) 
+    and 'Strict Mode' (malicious patterns like command injection).
+    """
     current_val = get_clipboard_content()
-    if not current_val or current_val == last_val:
+    if not current_val:
         return current_val, None
-
-    # Check if current content is a crypto address
-    current_match = CRYPTO_RE.search(current_val)
-    last_match = CRYPTO_RE.search(last_val) if last_val else None
-
-    if current_match:
-        curr_addr = current_match.group(0)
         
-        # Scenario: User had a crypto address in clipboard, and it was replaced by a DIFFERENT one
-        if last_match:
-            prev_addr = last_match.group(0)
-            if curr_addr != prev_addr:
-                # Potential Hijack Detected
-                alert_msg = f"❌ CLIPBOARD HIJACK DETECTED!\n" \
-                          f"    Address replaced: {prev_addr[:10]}... -> {curr_addr[:10]}...\n" \
-                          f"    ⚡️ NEUTRALIZING: Overwriting clipboard with safety warning."
-                
-                # 1. IMMEDIATE NEUTRALIZATION: Overwrite the clipboard
-                safety_msg = "⚠️ SOVEREIGN GUARD: CLIPBOARD HIJACK DETECTED! DO NOT PASTE. ⚠️"
-                set_clipboard_content(safety_msg)
-                
-                # 2. AUDIT AND KILL
-                audit_result = audit_clipboard_hijacker()
-                alert_msg += f"\n    Result: {audit_result}"
-                
-                return safety_msg, alert_msg
+    # Detect threats in current content
+    detected_threats = []
+    for threat_name, pattern in THREAT_PATTERNS.items():
+        match = pattern.search(current_val)
+        if match:
+            # For Crypto, we only care if it's a 'swap' (handled below)
+            # but for everything else, the existence of the pattern is a threat
+            if threat_name in STRICT_MODE_THREATS:
+                detected_threats.append((threat_name, match.group(0)))
+    
+    # Check for Crypto Swaps (Swap Mode)
+    crypto_match = THREAT_PATTERNS["CRYPTO_SWAP"].search(current_val)
+    last_crypto_match = THREAT_PATTERNS["CRYPTO_SWAP"].search(last_val) if last_val else None
+    
+    if crypto_match and last_crypto_match:
+        curr_addr = crypto_match.group(0)
+        prev_addr = last_crypto_match.group(0)
+        if curr_addr != prev_addr:
+            detected_threats.append(("CRYPTO_SWAP", f"{prev_addr[:10]}... -> {curr_addr[:10]}..."))
+
+    if detected_threats:
+        threat_types = [t[0] for t in detected_threats]
+        threat_desc = "; ".join([f"{t[0]}: {t[1]}" for t in detected_threats])
+        
+        # 1. IMMEDIATE NEUTRALIZATION: Overwrite the clipboard
+        safety_msg = "⚠️ SOVEREIGN GUARD: CLIPBOARD VIRUS DETECTED! DO NOT PASTE. ⚠️"
+        set_clipboard_content(safety_msg)
+        
+        # 2. AUDIT AND KILL
+        alert_msg = f"❌ CLIPBOARD THREAT NEUTRALIZED!\n" \
+                  f"    Detections: {threat_desc}\n" \
+                  f"    ⚡️ ACTION: Clipboard overwritten, initiating culprit audit..."
+        
+        audit_result = audit_clipboard_hijacker()
+        alert_msg += f"\n    Result: {audit_result}"
+        
+        # Voice feedback varies by threat
+        if "CMD_INJECTION" in threat_types:
+            speak("Command injection attempt neutralized. Source process terminated.")
+        elif "MALICIOUS_SCRIPT" in threat_types:
+            speak("Malicious script detected in clipboard. Threat neutralized.")
+        elif "CRYPTO_SWAP" in threat_types:
+            speak("Warning. Clipboard hijack attempt detected. Verify your destination address.")
+        else:
+            speak("Clipboard threat detected and neutralized.")
+            
+        return safety_msg, alert_msg
 
     return current_val, None
 
