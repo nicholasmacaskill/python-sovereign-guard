@@ -238,6 +238,26 @@ def monitor_loop():
                         elif is_safe_mode:
                             speak("Threat detected. Intervention suspended.")
                     
+                    # Network Activity Check (Reverse Shell & Data Exfiltration Detection)
+                    network_threat = core.check_network_activity(proc)
+                    if network_threat:
+                        print(f"\n{network_threat['summary']}")
+                        logger.warning(f"[NETWORK] {network_threat['summary']}")
+                        
+                        notify_alert(network_threat['title'], network_threat['summary'])
+                        
+                        # Kill reverse shells immediately
+                        if not is_safe_mode and network_threat['critical']:
+                            try:
+                                proc.kill()
+                                print("⚡️ REVERSE SHELL NEUTRALIZED (Process Killed)")
+                                speak("Reverse shell detected and neutralized.")
+                            except:
+                                print("❌ Failed to kill reverse shell.")
+                        elif not network_threat['critical']:
+                            # Just warn for suspicious connections
+                            speak("Suspicious network connection detected.")
+                    
                     current_pids.add(proc.pid)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
