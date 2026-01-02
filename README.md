@@ -41,8 +41,19 @@ Sovereign Guard neutralizes these threats through multi-layered, low-latency mon
 
 ### 🏗️ Execution Integrity (Anti-Hijack)
 *   **Watchdog Supervisor**: A dedicated `watchdog.py` process acts as a supervisor, instantly resurrecting the monitor if it is killed by malware.
-*   **Flag Neutralization**: Kills any browser process launched with dangerous flags (`--remote-debugging-port`, `--load-extension`) that allow external control or unvetted code execution.
-*   **Path Enforcement**: Rejects any browser binary running from untrusted locations. Chrome must run from `/Applications/` or it is considered a compromise.
+*   **Flag Neutralization**: Kills any browser process launched with dangerous flags (`--load-extension`) that allow unvetted code execution. Suspicious flags (`--remote-debugging-port`, `--headless`) trigger warnings but don't kill (developer-friendly).
+*   **Comprehensive Path Validation**: Validates processes against **9 legitimate system paths** (not just `/Applications/`):
+    - `/Applications/` - User-installed apps
+    - `/System/Applications/` - macOS system apps
+    - `/System/Library/` - Apple system frameworks
+    - `/usr/bin/`, `/usr/local/bin/`, `/usr/libexec/` - System binaries
+    - `/Library/Apple/`, `/Library/Application Support/` - Apple services
+    - `/private/var/` - System runtime directories
+*   **Intelligent Whitelisting**: Pre-configured with 70+ known safe processes across 4 categories:
+    1. **Developer Tools**: VS Code, PyCharm, Node, Git, Docker, Python
+    2. **Apple System Architecture**: launchd, Spotlight, Finder, Dock, WindowServer
+    3. **Apple Background Services**: 30+ system daemons (searchpartyuseragent, cloudpaird, etc.)
+    4. **Third-Party Utilities**: Alfred, Raycast, 1Password, Dropbox
 *   **Origin Tracing**: Every event logs the **Parent Process**, unmasking the hidden scripts or agents that attempted the launch.
 
 ### 📋 Clipboard Sentry (Anti-Virus)
@@ -105,6 +116,60 @@ Sovereign Guard uses a military-grade "Two-Man Rule" specifically designed to be
 
 ---
 
+## 🚀 Installation & Usage
+
+### Quick Start
+```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/python-sovereign-guard.git
+cd python-sovereign-guard
+
+# 2. Install dependencies
+pip3 install -r requirements.txt
+
+# 3. Configure your environment
+cp .env.example .env.sovereign
+# Edit .env.sovereign with your SOVEREIGN_SECRET
+
+# 4. Start protection
+./sovereign start
+
+# 5. Open Mission Control Dashboard
+# Visit http://127.0.0.1:5000 in your browser
+```
+
+### 🎓 Learn Mode Onboarding (Zero False Positives)
+
+Sovereign Guard uses a **3-phase onboarding system** to eliminate false positives:
+
+**Phase 1: LEARN MODE (Days 1-7)** 🎓
+- Observes all processes on your system
+- **Kills nothing** - zero workflow disruption
+- Builds a personalized whitelist of your legitimate tools
+- Dashboard shows real-time learning progress
+
+**Phase 2: WARN MODE (Days 8-14)** ⚠️
+- Starts detecting threats
+- **Shows alerts but doesn't kill**
+- You review and refine the whitelist
+- Notifications: "⚠️ Suspicious: Chrome with --remote-debugging-port"
+
+**Phase 3: PROTECT MODE (Day 15+)** 🛡️
+- **Full aggressive protection**
+- Kills unknown/suspicious processes instantly
+- False positives are rare (whitelist is mature)
+- Your workflow is protected without interruption
+
+**Manual Override:**
+```bash
+# Skip to aggressive mode immediately (if confident in whitelist)
+echo 'PROTECTION_MODE="protect"' >> .env.sovereign
+
+# Stay in learn mode indefinitely
+echo 'PROTECTION_MODE="learn"' >> .env.sovereign
+```
+
+### Commands
 ## ⚙️ Manual Configuration (Optional)
 
 ### 1. Configure Your Secret
