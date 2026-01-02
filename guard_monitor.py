@@ -159,6 +159,18 @@ def run_threat_diagnostics():
     
     return diagnostics
 
+def get_attacker_ip(pid):
+    """Attempts to find the remote IP address connected to a process's debug port."""
+    try:
+        proc = psutil.Process(pid)
+        connections = proc.connections(kind='inet')
+        for conn in connections:
+            if conn.status == 'ESTABLISHED' and conn.remote_address:
+                return conn.remote_address.ip
+    except:
+        pass
+    return None
+
 def run_malware_scan():
     """Runs a targeted malware scan on high-risk directories."""
     scan_results = []
@@ -484,26 +496,45 @@ def check_clipboard_sentry(last_val):
         threat_desc = "; ".join([f"{t[0]}: {t[1]}" for t in detected_threats])
         
         # 1. IMMEDIATE NEUTRALIZATION: Overwrite the clipboard
-        safety_msg = "⚠️ SOVEREIGN GUARD: CLIPBOARD VIRUS DETECTED! DO NOT PASTE. ⚠️"
-        set_clipboard_content(safety_msg)
+        attacker_ip = None
+        # Try to find a remote IP if any browser is in debug mode
+        for p in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if any(b in (p.info['name'] or "").lower() for b in ['chrome', 'brave', 'edge', 'arc']):
+                    ip = get_attacker_ip(p.info['pid'])
+                    if ip: attacker_ip = ip
+            except: continue
+
+        if attacker_ip:
+            safety_msg = f"⚠️ SOVEREIGN GUARD: ATTACKER IP [{attacker_ip}] LOGGED. FORENSIC TRACE INITIATED. ⚠️"
+            scare_msg = f"[SOVEREIGN_SEC_LOG]: ENCRYPTION KEY MASKED. REMOTE IP {attacker_ip} LOGGED. WE HAVE YOUR FINGERPRINT."
+            set_clipboard_content(scare_msg)
+            speak("Active hijack confirmed. Attacker location traced. Forensic counter-measures initiated.")
+        else:
+            safety_msg = "⚠️ SOVEREIGN GUARD: CLIPBOARD VIRUS DETECTED! DO NOT PASTE. ⚠️"
+            set_clipboard_content(safety_msg)
         
         # 2. AUDIT AND KILL
         alert_msg = f"❌ CLIPBOARD THREAT NEUTRALIZED!\n" \
                   f"    Detections: {threat_desc}\n" \
                   f"    ⚡️ ACTION: Clipboard overwritten, initiating culprit audit..."
         
+        if attacker_ip:
+            alert_msg += f"\n    🚨 ATTACKER TRACED: {attacker_ip}"
+
         audit_result = audit_clipboard_hijacker()
         alert_msg += f"\n    Result: {audit_result}"
         
-        # Voice feedback varies by threat
-        if "CMD_INJECTION" in threat_types:
-            speak("Command injection attempt neutralized. Source process terminated.")
-        elif "MALICIOUS_SCRIPT" in threat_types:
-            speak("Malicious script detected in clipboard. Threat neutralized.")
-        elif "CRYPTO_SWAP" in threat_types:
-            speak("Warning. Clipboard hijack attempt detected. Verify your destination address.")
-        else:
-            speak("Clipboard threat detected and neutralized.")
+        # Voice fallback if not already spoken by attacker_ip logic
+        if not attacker_ip:
+            if "CMD_INJECTION" in threat_types:
+                speak("Command injection attempt neutralized. Source process terminated.")
+            elif "MALICIOUS_SCRIPT" in threat_types:
+                speak("Malicious script detected in clipboard. Threat neutralized.")
+            elif "CRYPTO_SWAP" in threat_types:
+                speak("Warning. Clipboard hijack attempt detected. Verify your destination address.")
+            else:
+                speak("Clipboard threat detected and neutralized.")
             
         return safety_msg, alert_msg
 

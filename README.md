@@ -37,7 +37,10 @@ Sovereign Guard neutralizes these threats through multi-layered, low-latency mon
 *   **Swap-Mode Protection**: Actively monitors financial addresses. If a background process attempts to swap your copied BTC address for an attacker's, the system detects the delta and resets it to a safety warning.
 *   **Exposure Prevention**: Alerts you if sensitive keys (RSA, AWS Secrets) are copied while suspicious background activity is detected.
 
-### 🧠 Zero-Trust Diagnostics
+### ⚡️ Active Counter-Response (Honeypotting)
+*   **Attacker Identification**: If a remote hijack is detected via a debug port, the system automatically traces the **Remote IP address** of the attacker.
+*   **Forensic Scare Messages**: Instead of a generic warning, the system overwrites the clipboard with a targeted message: `[SOVEREIGN_SEC_LOG]: ATTACKER IP [IP] LOGGED. WE HAVE YOUR FINGERPRINT.`
+*   **Aggressive Alerts**: Vocalizes a severe warning: *"Active hijack confirmed. Attacker location traced. Forensic counter-measures initiated."*
 When a threat is neutralized, the system automatically initiates a deep-dive audit:
 *   **Persistence Audit**: Scans `~/Library/LaunchAgents` for malicious persistence.
 *   **Network Sentry**: Scans for listening debugger ports that bypassed process checks.
