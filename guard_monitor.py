@@ -6,6 +6,7 @@ import logging
 import subprocess
 import re
 import platform
+import hmac
 from plyer import notification
 
 # Configure logging
@@ -100,8 +101,8 @@ def notify_alert(title, message):
     try:
         if sys.platform == "darwin":
             # Use native osascript on macOS to avoid heavy dependencies like pyobjus
-            safe_title = title.replace('"', '\\"')
-            safe_message = message.replace('"', '\\"')
+            safe_title = title.replace('\\', '\\\\').replace('"', '\\"')
+            safe_message = message.replace('\\', '\\\\').replace('"', '\\"')
             script = f'display notification "{safe_message}" with title "{safe_title}"'
             subprocess.run(["osascript", "-e", script], check=False)
             return
@@ -159,14 +160,19 @@ def run_threat_diagnostics():
     
     return diagnostics
 
+    return None
+
 def get_attacker_ip(pid):
     """Attempts to find the remote IP address connected to a process's debug port."""
     try:
         proc = psutil.Process(pid)
         connections = proc.connections(kind='inet')
         for conn in connections:
+            # We only care if the connection is to one of our DEBUG_PORTS
+            # conn.laddr is the local address (the browser listening)
             if conn.status == 'ESTABLISHED' and conn.remote_address:
-                return conn.remote_address.ip
+                if conn.laddr.port in DEBUG_PORTS:
+                    return conn.remote_address.ip
     except:
         pass
     return None
@@ -266,6 +272,9 @@ def check_process(proc, safe_mode=False):
         detected_flags = critical_detected + suspicious_detected
         
         if detected_flags:
+            risk_level = "CRITICAL" if critical_detected or spoof_detected else "SUSPICIOUS"
+            risk_title = f"⚡️ SOVEREIGN GUARD: {risk_level} THREAT DETECTED"
+            
             # Run automatic diagnostics
             log_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             summary_msg = f"SECURITY ALERT: Process '{name}' (PID: {pid}) detected with flags: {', '.join(detected_flags)}"
@@ -377,7 +386,8 @@ def check_safe_mode():
         with open(SAFE_MODE_FILE, 'r') as f:
             # Match secret to ensure malware didn't create the lock
             sig = f.read().strip()
-            return sig == secret
+            # Use constant-time comparison to prevent timing attacks
+            return hmac.compare_digest(sig, secret)
     except:
         return False
 
@@ -419,8 +429,17 @@ def audit_clipboard_hijacker():
                 name = p_info['name']
                 exe = p_info['exe'] or ""
                 
-                # Skip safe processes
-                if any(safe in name.lower() for safe in SAFE_LIST_PROCESSES):
+                # Skip safe processes (Exact match or safe prefix to prevent substring exploits)
+                # e.g. "code" matches "code", "code helper" but not "codemalware" logic requires care
+                name_low = name.lower()
+                is_safe = False
+                for safe in SAFE_LIST_PROCESSES:
+                    # Check for exact match OR safe + " " (helper) OR safe + "." (extension)
+                    if name_low == safe or name_low.startswith(f"{safe} ") or name_low.startswith(f"{safe}."):
+                        is_safe = True
+                        break
+                
+                if is_safe:
                     continue
                 
                 # Skip officially signed Apple System processes
