@@ -1,2 +1,4 @@
 sovereign_core.py filter=git-crypt diff=git-crypt
 .env.sovereign filter=git-crypt diff=git-crypt
+learning_engine.py filter=git-crypt diff=git-crypt
+sovereign_dashboard.py filter=git-crypt diff=git-crypt
