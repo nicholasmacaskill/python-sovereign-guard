@@ -14,8 +14,30 @@ logging.basicConfig(
 )
 
 # Constants
-TARGET_PROCESS_NAMES = ['chrome.exe', 'Google Chrome']
-DANGEROUS_FLAGS = ['--remote-debugging-port', '--load-extension']
+# Constants
+TARGET_PROCESS_NAMES = [
+    'chrome.exe', 'Google Chrome', 'Google Chrome Helper',
+    'Brave Browser', 'brave.exe',
+    'Microsoft Edge', 'msedge.exe',
+    'Arc', 'Arc Helper',
+    'Opera', 'opera.exe',
+    'Vivaldi', 'vivaldi.exe',
+    'Chromium', 'chromium'
+]
+CRITICAL_FLAGS = [
+    '--remote-debugging-port', 
+    '--load-extension'
+]
+SUSPICIOUS_FLAGS = [
+    '--disable-web-security', 
+    '--no-sandbox', 
+    '--headless'
+]
+DEBUG_PORTS = [9222, 9223, 9224, 9225, 9226, 9227, 9228, 9229, 1337]
+
+# Mitigation Configuration
+SAFE_MODE_FILE = "developer_mode.lock" # If this file exists, AUTO-KILL is disabled
+SAFE_LIST_PROCESSES = ['code', 'vscode', 'pycharm', 'idea', 'node', 'npm'] # Processes allowed to spawn tools
 
 # Security Configuration
 AUTO_MALWARE_SCAN = True  # Set to False to disable automatic scanning
@@ -135,18 +157,38 @@ def run_malware_scan():
     
     return scan_results
 
-def check_process(proc):
-    """Checks a single process for dangerous flags."""
+def check_process(proc, safe_mode=False):
+    """Checks a single process for dangerous flags.
+    
+    Args:
+        proc: The psutil process object
+        safe_mode: If True, detection creates alerts but DOES NOT kill.
+    """
     try:
         cmdline = proc.cmdline()
         pid = proc.pid
         name = proc.name()
         
-        detected_flags = []
+        # Origin Tracing: Identify Parent Process
+        try:
+            parent = proc.parent()
+            parent_name = parent.name() if parent else "Unknown"
+            parent_pid = parent.pid if parent else "N/A"
+            origin_info = f"Launched by: '{parent_name}' (PID: {parent_pid})"
+        except:
+            origin_info = "Launched by: Unknown (Unable to trace parent)"
+        
+        critical_detected = []
+        suspicious_detected = []
         for arg in cmdline:
-            for flag in DANGEROUS_FLAGS:
+            for flag in CRITICAL_FLAGS:
                 if arg.startswith(flag):
-                    detected_flags.append(flag)
+                    critical_detected.append(flag)
+            for flag in SUSPICIOUS_FLAGS:
+                if arg.startswith(flag):
+                    suspicious_detected.append(flag)
+        
+        detected_flags = critical_detected + suspicious_detected
         
         if detected_flags:
             # Run automatic diagnostics
@@ -168,6 +210,7 @@ def check_process(proc):
                 f"!!! SOVEREIGN GUARD ALERT !!!\n"
                 f"{'='*60}\n"
                 f"Process: '{name}' (PID: {pid})\n"
+                f"Origin: {origin_info}\n"
                 f"Threat Detection: {', '.join(detected_flags)}\n"
                 f"\nAUTOMATIC DIAGNOSTICS:\n"
             )
@@ -185,14 +228,23 @@ def check_process(proc):
                     actionable_msg += f"  {result}\n"
             
             # AUTOMATIC REMEDIATION
-            try:
-                proc.kill()
-                actionable_msg += f"\n⚡️ THREAT AUTOMATICALLY NEUTRALIZED (Process Killed)\n"
-                summary_msg += " [NEUTRALIZED]"
-                speak("Threat detected. Insecure browser instance neutralized.")
-            except Exception as e:
-                actionable_msg += f"\n❌ Failed to auto-kill process: {e}\nIMMEDIATE ACTION REQUIRED: kill -9 {pid}\n"
-                speak("Threat detected. Manual intervention required.")
+            if not safe_mode and critical_detected:
+                try:
+                    proc.kill()
+                    actionable_msg += f"\n⚡️ THREAT AUTOMATICALLY NEUTRALIZED (Process Killed)\n"
+                    summary_msg += " [NEUTRALIZED]"
+                    speak("Critical threat detected. Insecure browser instance neutralized.")
+                except Exception as e:
+                    actionable_msg += f"\n❌ Failed to auto-kill process: {e}\nIMMEDIATE ACTION REQUIRED: kill -9 {pid}\n"
+                    speak("Threat detected. Manual intervention required.")
+            elif safe_mode and detected_flags:
+                actionable_msg += f"\n⚠️  THREAT DETECTED (SAFE MODE - NO ACTION TAKEN)\n"
+                summary_msg += " [SAFE MODE DETECTED]"
+                speak("Threat detected. Intervention suspended due to developer mode.")
+            elif suspicious_detected and not critical_detected:
+                 actionable_msg += f"\nℹ️  SUSPICIOUS FLAGS DETECTED (Alert Only - No Kill)\n"
+                 summary_msg += " [SUSPICIOUS ONLY]"
+                 # speak("Suspicious browser activity detected.") # Maybe too annoying for suspicious? 
 
             actionable_msg += f"{'='*60}\n"
             
@@ -216,37 +268,104 @@ def check_process(proc):
         pass
     return False
 
+def check_network_sentry():
+    """Checks for active listening ports commonly used for debugging."""
+    try:
+        # Use lsof for MacOS/Linux
+        # Checking for any process listening on our target debug ports
+        netstat = subprocess.run(['lsof', '-i', '-P', '-n'], capture_output=True, text=True, timeout=1)
+        
+        for line in netstat.stdout.split('\n'):
+            if 'LISTEN' in line:
+                for port in DEBUG_PORTS:
+                    if f":{port} " in line:
+                        parts = line.split()
+                        proc_name = parts[0]
+                        proc_pid = parts[1]
+                        # Don't alert if we just alerted on this PID via process check
+                        return f"⚠️  NETWORK SENTRY: Process '{proc_name}' (PID: {proc_pid}) is listening on PORT {port}"
+    except:
+        pass
+    return None
+
+def check_safe_mode():
+    """Checks if Developer Mode is active (prevents auto-kill)."""
+    return os.path.exists(SAFE_MODE_FILE)
+
 def monitor_loop():
     """Main monitoring loop."""
     print("Sovereign Guard Monitor Active...")
     logging.info("Monitor started.")
     
-    # TEST NOTIFICATION ON STARTUP
-    notify_alert("Guard Active", "The Sovereign Guard monitor has started successfully.")
-    speak("Sovereign Guard initialized. The perimeter is secure.")
+    speak("Sovereign Guard online. Verification active.")
 
     seen_pids = set()
+    last_heartbeat = time.time()
+    scanned_count = 0
+    
+    # State tracking for voice feedback
+    was_safe_mode = False
 
     try:
         while True:
+            # Check for Developer Mode Toggle
+            is_safe_mode = check_safe_mode()
+            if is_safe_mode and not was_safe_mode:
+                print("\n⚠️  DEVELOPER MODE ACTIVE: Auto-Kill Disabled.")
+                speak("Developer mode enabled. Auto-defense systems standby.")
+                was_safe_mode = True
+            elif not is_safe_mode and was_safe_mode:
+                print("\n🛡️  DEVELOPER MODE DEACTIVATED: Auto-Kill Re-armed.")
+                speak("Developer mode disabled. Defense systems re-engaged.")
+                was_safe_mode = False
+
             current_pids = set()
+            scanned_count = 0
+            
+            # 1. Network Sentry Check (Port Scanning)
+            port_threat = check_network_sentry()
+            if port_threat:
+                print(f"\n{port_threat}")
+                logging.warning(port_threat)
+                # Network threats generally safer to just warn about unless we add strict port logic
+            
+            # 2. Process Scanning
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                 try:
                     name = proc.info['name']
-                    # Broaden check to case-insensitive 'chrome'
-                    if name and 'chrome' in name.lower():
+                    scanned_count += 1
+                    
+                    # Broaden check to 'chrome' or our new target list
+                    is_target = False
+                    if name:
+                        name_lower = name.lower()
+                        
+                        # Whitelist Check: If process is in SAFE_LIST, skip usage checks
+                        # (Implementation Note: This safeguards IDEs, but usually we check the *browser* flags)
+                        # A better check is: If Parent is in Safe List -> Do not kill?
+                        # For now, we keep strictly to browser binaries.
+                        
+                        if 'chrome' in name_lower or 'brave' in name_lower or 'edge' in name_lower or 'arc' in name_lower or 'opera' in name_lower:
+                             is_target = True
+                    
+                    if is_target:
                         pid = proc.info['pid']
                         current_pids.add(pid)
                         
                         if pid not in seen_pids:
-                            # Debug print
-                            # print(f"[DEBUG] Checking process: {name} (PID: {pid})")
-                            if check_process(proc):
-                                 pass
+                            # Pass safe_mode state to check_process
+                            check_process(proc, safe_mode=is_safe_mode)
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     continue
             
             seen_pids = current_pids
+            
+            # 3. Visual Heartbeat (Every 10 seconds)
+            if time.time() - last_heartbeat > 10:
+                mode_str = "DEV MODE (SAFE)" if is_safe_mode else "ACTIVE DEFENSE"
+                print(f"🛡️  [{time.strftime('%H:%M:%S')}] {mode_str} | Scanned: {scanned_count}")
+                last_heartbeat = time.time()
+
             time.sleep(0.5) # High frequency polling
             
     except KeyboardInterrupt:

@@ -70,36 +70,46 @@ cd /Users/nicholasmacaskill/Desktop/python-sovereign-guard/
 ./setup.sh
 ```
 
-### Run the Monitor
+## ⚡️ Quick Controls
+
+We've included a simple CLI tool called `sovereign` to manage everything.
+
+### Start the Monitor
 ```bash
-./venv/bin/python3 guard_monitor.py
+./sovereign start
+# Checks status
+./sovereign status
 ```
 
-### Enable Auto-Start (Persistent Protection)
+### Instant Security Audit
+Want to check your system right now without starting the background monitor?
 ```bash
-launchctl load ~/Library/LaunchAgents/com.sovereign.guard_monitor.plist
+./sovereign scan
+```
+*Returns ✅ SECURE or ❌ COMPROMISED.*
+
+### Developer Mode (Safe Mode)
+Need to debug your own browser? Enable Safe Mode to prevent the monitor from killing your process.
+```bash
+# Disable Auto-Kill (Safe to debug)
+./sovereign dev
+
+# Re-arm Auto-Kill (Secure Perimeter)
+./sovereign secure
+```
+
+### Stop the Monitor
+```bash
+./sovereign stop
 ```
 
 ## Alert Response
 
 When you receive a **"CRITICAL: BROWSER HIJACK RISK"** notification:
 
-1. **Immediate**: Close the flagged Chrome process (PID shown in alert)
-   ```bash
-   kill -9 [PID]
-   ```
-
-2. **Investigate**: Review the automatic diagnostics in your terminal
-   - Check for suspicious LaunchAgents
-   - Verify no external debuggers are connected
-   - Review recent app installations
-
-3. **Scan**: Run a malware scan
-   ```bash
-   brew install clamav
-   freshclam
-   clamscan -r ~/
-   ```
+1.  **Immediate**: The system has *already* killed the process.
+2.  **Investigate**: Check `guard_monitor.log` for the "Origin" trace.
+3.  **Scan**: The system has *already* started a malware scan.
 
 ## Peace of Mind Guarantees
 
