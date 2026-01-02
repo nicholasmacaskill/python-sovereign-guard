@@ -6,6 +6,16 @@ Sovereign Guard is a high-fidelity, zero-trust security perimeter designed to pr
 
 Sovereign Guard fills that gap by monitoring the integrity of your browser's execution and the sanctity of your clipboard.
 
+## 💎 Value Proposition: Session Sovereignty
+
+Sovereign Guard solves a specific security gap that standard tools (like Antivirus or YubiKeys) do not address: **Local Environment Exploitation.**
+
+*   **The Problem**: Modern security protects the *Login*. Once logged in, your "Session Cookie" is vulnerable. Malware can launch hidden "Shadow Sessions" or swap your clipboard content in milliseconds.
+*   **The Solution**: Sovereign Guard assumes your environment is hostile and actively polices it.
+    *   **Anti-Hijack**: Kills browsers attempting to run in "Debug Mode" or from hidden locations.
+    *   **Clipboard Sentry**: Detects and neutralizes "Copy/Paste Attacks" (crypto swappers).
+    *   **Double-Lock Resilience**: Military-grade process supervision ensures the monitor cannot be disabled by user-space malware.
+
 ---
 
 ## ⚡️ The 2026 Threat Landscape
@@ -18,8 +28,10 @@ DBSC binds your session to your TPM/Secure Enclave. However, malware running on 
 ### 2. Advanced Clipboard "Clippers"
 Sophisticated malware now monitors your clipboard in real-time. When it detects a high-value address (BTC/ETH) or a sensitive command (`curl | bash`), it swaps the content in the milliseconds between **Copy** and **Paste**.
 
-### 3. "Ghost" Browser Spoofing
-Malware replaces your standard browser binaries with "Ghost" versions or launches browsers from hidden directories (`/tmp/.chrome`) that look identical to the user but navigate through malicious proxies.
+### 3. "Shadow Session" & Profile Cloning
+Attackers do not need to hijack your *active* browser window. Instead, they launch a **parallel, invisible Chrome instance** (`--headless`) that points to your existing user profile data.
+*   **The Threat**: To you, your browser looks normal. In the background, a second "Shadow Chrome" is running with your logged-in sessions, controlled remotely via the DevTools Protocol.
+*   **The Mitigation**: Sovereign Guard monitors *every* process. Even if your main window is safe, if a background process attempts to launch a secondary instance with debugging or a cloned profile, it is instantly terminated.
 
 ---
 
@@ -28,6 +40,7 @@ Malware replaces your standard browser binaries with "Ghost" versions or launche
 Sovereign Guard neutralizes these threats through multi-layered, low-latency monitoring.
 
 ### 🏗️ Execution Integrity (Anti-Hijack)
+*   **Watchdog Supervisor**: A dedicated `watchdog.py` process acts as a supervisor, instantly resurrecting the monitor if it is killed by malware.
 *   **Flag Neutralization**: Kills any browser process launched with dangerous flags (`--remote-debugging-port`, `--load-extension`) that allow external control or unvetted code execution.
 *   **Path Enforcement**: Rejects any browser binary running from untrusted locations. Chrome must run from `/Applications/` or it is considered a compromise.
 *   **Origin Tracing**: Every event logs the **Parent Process**, unmasking the hidden scripts or agents that attempted the launch.
@@ -48,18 +61,45 @@ When a threat is neutralized, the system automatically initiates a deep-dive aud
 
 ---
 
-## 🚀 Installation & Setup
+## 🚀 Quick Start (For Novices)
+
+**Just run this command.** It automates everything:
+```bash
+./setup.sh
+```
+This script will:
+1.  Install the necessary "brains" (Python dependencies).
+2.  Set up the **Double-Lock** supervisor (see below).
+3.  Launch the protection immediately.
+
+You will hear: *"Sovereign Guard online. Verification active."* 
+That's it. You are secure.
+
+---
+
+## 🏗️ The "Double-Lock" Architecture (Bulletproof)
+
+Sovereign Guard uses a military-grade "Two-Man Rule" specifically designed to be resilient against malware attempts to kill it:
+
+1.  **The Watchdog (Supervisor)**: This process does nothing but watch the monitor. If the monitor dies or is killed, the Watchdog resurrects it in `< 0.1s`.
+2.  **The OS Daemon (Launchd)**: The macOS system itself watches the Watchdog. If you kill the Watchdog, macOS restarts it instantly.
+
+**Result**: To stop Sovereign Guard, an attacker would need **Root/Administrator** access to unload the system daemon. User-space malware cannot kill it.
+
+---
+
+## ⚙️ Manual Configuration (Optional)
 
 ### 1. Configure Your Secret
 Sovereign Guard uses a secret key to authorize "Safe Mode" and prevent malware from disabling the monitor.
 ```bash
 cp .env.example .env.sovereign
-# Edit .env.sovereign and set a strong SOVEREIGN_SECRET
+# Edit .env.sovereign and set a strong SOVEREIGN_SECRET (Default is fine for testing)
 nano .env.sovereign
 ```
 
 ### 2. Run the Initializer
-The setup script creates a Python virtual environment, installs dependencies, and configures the macOS LaunchAgent.
+(If you didn't use the Quick Start command above)
 ```bash
 ./setup.sh
 ```
@@ -87,10 +127,17 @@ Use the `sovereign` CLI to manage your perimeter.
 
 ---
 
-## 📜 Technical Details & Logs
+## 📜 Technical Details & Whitelist
 
-*   **Logs**: Audit-trail is stored in `guard_monitor.log` and `guard_monitor.out`.
-*   **Remediation**: Uses terminal `pkill` and macOS `say` for instant feedback.
-*   **Voice**: Provides vocal alerts via the macOS "Samantha" voice for hands-free threat awareness.
+### 🛡️ Whitelisted System Processes
+Sovereign Guard ignores specific developer tools and system daemons to prevent false positives. The following processes are **EXEMPT** from termination:
+*   **Developer Tools**: `code`, `vscode`, `pycharm`, `idea`, `node`, `npm`
+*   **System Daemons**: `spotlight`, `mdworker` (Index), `launchd`, `distnoted`, `cfprefsd`, `taskgated`, `tccd`, `useractivityd`
+*   **Intelligence Agents**: `knowledge-agent`, `spotlightknowledged`, `lsd`
+
+### 📊 Logs & Diagnostics
+*   **Audit Trail**: All events are logged to `guard_monitor.log` (JSON-structured for parsing).
+*   **Watcher Logs**: Supervisor events are found in `guard_watchdog.out`.
+*   **Feedback**: Uses macOS native `say` for vocal alerts (Samantha voice) and `osascript` for desktop notifications.
 
 **Stay Sovereign. Stay Secure.**

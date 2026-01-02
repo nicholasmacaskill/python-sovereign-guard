@@ -6,8 +6,8 @@ import time
 import signal
 
 # Configuration
-MONITOR_SCRIPT = "guard_monitor.py"
-PID_FILE = "guard_monitor.pid"
+MONITOR_SCRIPT = "watchdog.py" # Point to the supervisor
+PID_FILE = "guard_supervisor.pid" # Track supervisor PID
 SAFE_MODE_FILE = "developer_mode.lock"
 VENV_PYTHON = "./venv/bin/python3"
 ENV_FILE = ".env.sovereign"
@@ -42,13 +42,13 @@ def is_running(pid):
 def start():
     pid = get_pid()
     if is_running(pid):
-        print(f"[-] Monitor is already running (PID: {pid})")
+        print(f"[-] Supervisor is already running (PID: {pid})")
         return
 
-    print("[-] Starting Sovereign Guard Monitor...")
+    print("[-] Starting Sovereign Guard (Watchdog Supervisor)...")
     try:
         # Launch independently
-        with open("guard_monitor.out", "a") as out, open("guard_monitor.err", "a") as err:
+        with open("guard_watchdog.out", "a") as out, open("guard_watchdog.err", "a") as err:
             proc = subprocess.Popen(
                 [VENV_PYTHON, MONITOR_SCRIPT],
                 stdout=out,
@@ -61,10 +61,10 @@ def start():
         with open(PID_FILE, 'w') as f:
             f.write(str(proc.pid))
             
-        print(f"[+] Sovereign Guard started successfully (PID: {proc.pid})")
-        print("    Usage logs: tail -f guard_monitor.out")
+        print(f"[+] Sovereign Guard Supervisor started (PID: {proc.pid})")
+        print("    Usage logs: tail -f guard_watchdog.out")
     except Exception as e:
-        print(f"[!] Failed to start monitor: {e}")
+        print(f"[!] Failed to start supervisor: {e}")
 
 def stop():
     pid = get_pid()

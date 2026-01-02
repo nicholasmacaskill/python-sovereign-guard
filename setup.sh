@@ -51,8 +51,8 @@ chmod +x guard_monitor.py
 echo "[*] Setting up Launch Agent for Process Monitor (macOS)..."
 
 # Define the LaunchAgent plist
-PLIST_PATH="$HOME/Library/LaunchAgents/com.sovereign.guard_monitor.plist"
-SCRIPT_PATH="$(pwd)/guard_monitor.py"
+PLIST_PATH="$HOME/Library/LaunchAgents/com.sovereign.watchdog.plist"
+SCRIPT_PATH="$(pwd)/watchdog.py"
 PYTHON_PATH="$(pwd)/venv/bin/python3"
 
 cat <<EOF > "$PLIST_PATH"
@@ -61,7 +61,7 @@ cat <<EOF > "$PLIST_PATH"
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.sovereign.guard_monitor</string>
+    <string>com.sovereign.watchdog</string>
     <key>ProgramArguments</key>
     <array>
         <string>$PYTHON_PATH</string>
@@ -72,9 +72,9 @@ cat <<EOF > "$PLIST_PATH"
     <key>KeepAlive</key>
     <true/>
     <key>StandardErrorPath</key>
-    <string>$(pwd)/guard_monitor.err</string>
+    <string>$(pwd)/guard_watchdog.err</string>
     <key>StandardOutPath</key>
-    <string>$(pwd)/guard_monitor.out</string>
+    <string>$(pwd)/guard_watchdog.out</string>
 </dict>
 </plist>
 EOF

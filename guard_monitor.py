@@ -7,11 +7,18 @@ import subprocess
 import re
 import platform
 import hmac
+from datetime import datetime
 from plyer import notification
 
+# Global state for voice debounce
+LAST_SPOKEN_TIME = 0
+VOICE_COOLDOWN = 5 # Seconds
+
 # Configure logging
+# Configure logging
+log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'guard_monitor.log')
 logging.basicConfig(
-    filename='guard_monitor.log',
+    filename=log_path,
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -43,7 +50,8 @@ SAFE_MODE_FILE = "developer_mode.lock" # If this file exists, AUTO-KILL is disab
 SAFE_LIST_PROCESSES = [
     'code', 'vscode', 'pycharm', 'idea', 'node', 'npm', 
     'mdworker', 'mds', 'spotlight', 'launchd', 'distnoted', 
-    'cfprefsd', 'taskgated', 'tccd', 'useractivityd', 'lsd'
+    'cfprefsd', 'taskgated', 'tccd', 'useractivityd', 'lsd',
+    'knowledge-agent', 'spotlightknowledged'
 ] # Processes allowed to spawn tools and system tasks
 
 # Hardened Path Validation
@@ -118,10 +126,16 @@ def notify_alert(title, message):
         logging.error(f"Failed to send notification: {e}")
 
 def speak(text):
-    """Speaks text using a calm female voice (macOS)."""
+    """Speaks text using a calm female voice (macOS), with debounce."""
+    global LAST_SPOKEN_TIME
     try:
+        now = time.time()
+        if now - LAST_SPOKEN_TIME < VOICE_COOLDOWN:
+            return
+            
         # Use 'Samantha' for a calm, clear female voice
         subprocess.Popen(['say', '-v', 'Samantha', '-r', '160', text])
+        LAST_SPOKEN_TIME = now
     except:
         pass
 
@@ -499,6 +513,9 @@ def check_clipboard_sentry(last_val):
             # but for everything else, the existence of the pattern is a threat
             if threat_name in STRICT_MODE_THREATS:
                 detected_threats.append((threat_name, match.group(0)))
+            elif threat_name == "SENSITIVE_EXPOSURE":
+                 # Redact key in logs
+                 detected_threats.append((threat_name, "[REDACTED_SENSITIVE_KEY]"))
     
     # Check for Crypto Swaps (Swap Mode)
     crypto_match = THREAT_PATTERNS["CRYPTO_SWAP"].search(current_val)
@@ -617,10 +634,12 @@ def monitor_loop():
                         
                         # Whitelist Check: If process is in SAFE_LIST, skip usage checks
                         # (Implementation Note: This safeguards IDEs, but usually we check the *browser* flags)
-                        # A better check is: If Parent is in Safe List -> Do not kill?
-                        # For now, we keep strictly to browser binaries.
-                        
-                        if 'chrome' in name_lower or 'brave' in name_lower or 'edge' in name_lower or 'arc' in name_lower or 'opera' in name_lower:
+                        if name_lower in SAFE_LIST_PROCESSES:
+                            continue
+                            
+                        # Broaden check to 'chrome' or our new target list
+                        # FIX: Broad substring 'edge' matches 'knowledge-agent'. Use specific list.
+                        if 'chrome' in name_lower or 'brave' in name_lower or 'microsoft edge' in name_lower or 'arc' in name_lower or 'opera' in name_lower:
                              is_target = True
                     
                     if is_target:
