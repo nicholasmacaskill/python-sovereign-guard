@@ -1,6 +1,7 @@
-# Language Identity (Force GitHub to show Python primary)
+# Language Identity (Force GitHub to show both Python and Swift)
 *.py linguist-language=Python
-SovereignNative/** linguist-vendored
+*.swift linguist-language=Swift
+SovereignNative/** linguist-vendored=false
 
 # Sovereign Guard: Proprietary Moat (Encrypted)
 SovereignNative/** filter=git-crypt diff=git-crypt
