@@ -1,9 +1,16 @@
-# Sovereign Guard Secrets
+# Sovereign Guard Secrets & Logs
 .env.sovereign
-guard_monitor.log
-guard_watchdog.out
-guard_watchdog.err
-guard_supervisor.pid
+.env.local
+.env
+*.log
+*.out
+*.err
+*.pid
+*.txt
+.learning_log.json*
+.network_learning_log.json*
+.bootstrap_done
+.trigger_*
 developer_mode.lock
 
 # Virtual Env
@@ -11,8 +18,10 @@ venv/
 __pycache__/
 *.pyc
 
-# Proprietary Core Logic (Encrypted via git-crypt)
-# sovereign_core.py is NO LONGER ignored, it is tracked but encrypted.
+# Build Artifacts
+build/
+dist/
+*.egg-info/
 
 # Encryption Keys (NEVER COMMIT)
 *.key

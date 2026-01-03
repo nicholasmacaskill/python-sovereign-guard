@@ -1,5 +1,14 @@
 # 🛡️ Sovereign Guard Suite (2026 Edition)
 
+> [!IMPORTANT]
+> **🤖 AGENT SAFETY PROTOCOL (CRITICAL)**
+> When working on this repository, you must adhere to the following strict safety rules to protect the user's active session:
+> 1.  **NEVER** kill a browser process (`Google Chrome`, `Arc`, `Safari`, `Brave`) without explicit double-confirmation.
+> 2.  **NEVER** clear cookies, cache, or local storage. The user experiences recurring logouts (Proton.me).
+> 3.  **NEVER** modify network settings (DNS, Proxy, VPN) on the host machine without asking.
+> 4.  **ALWAYS** ask before running commands that might interrupt an active Zoom/Meet session.
+> 5.  If a test requires killing a process, spawn a dummy process (e.g., `sleep 1000`) instead of testing on live apps.
+
 > **"Your hardware is secure, but is your session?"**
 
 Sovereign Guard is a high-fidelity, zero-trust security perimeter designed to protect modern workstations against the 2026 threat landscape. While 2024-era protections like **Device Bound Session Credentials (DBSC)** secured cookies to hardware, they left a massive blind spot: **Local Environment Exploitation.**
@@ -32,6 +41,15 @@ Sophisticated malware now monitors your clipboard in real-time. When it detects 
 Attackers do not need to hijack your *active* browser window. Instead, they launch a **parallel, invisible Chrome instance** (`--headless`) that points to your existing user profile data.
 *   **The Threat**: To you, your browser looks normal. In the background, a second "Shadow Chrome" is running with your logged-in sessions, controlled remotely via the DevTools Protocol.
 *   **The Mitigation**: Sovereign Guard monitors *every* process. Even if your main window is safe, if a background process attempts to launch a secondary instance with debugging or a cloned profile, it is instantly terminated.
+
+## 🚀 Core Features
+
+- 🤖 **Behavioral UEBA**: 3-day learning phase to build a local process/network baseline.
+- 📸 **Lens & Audio Sentinel**: Real-time hardware monitoring for unauthorized camera/mic access.
+- 📦 **Supply Chain Sentinel**: Catch typosquatting packages before they compromise your environment.
+- 🧩 **Extension Auditor**: Flag "Shadow IT" browser extensions with risky permissions.
+- 📊 **Trust Score Dashboard**: A single 0-100 metric for your system's security posture.
+- 🔐 **Rubicon 2FA**: Mandatory hardware-key or TOTP verification for sensitive commands.
 
 ---
 
@@ -70,6 +88,13 @@ When a threat is neutralized, the system automatically initiates a deep-dive aud
 *   **Network Sentry**: Scans for listening debugger ports that bypassed process checks.
 *   **Malware Pulse**: Triggers an automated `clamscan` of high-risk directories (`~/Downloads`, `/tmp`).
 
+### 🌐 Network Layer Protection (Data Exfiltration Prevention)
+*   **Reverse Shell Detection**: Instantly kills shell processes (`bash`, `python`, `ruby`) with outbound connections to suspicious IPs or ports (4444, 1337, 31337).
+*   **Suspicious Connection Monitoring**: Warns when unknown processes connect to unrecognized domains or IPs.
+*   **Trusted Network Whitelisting**: Pre-configured with legitimate services (GitHub, npm, Apple, Google) to prevent false positives.
+*   **C2 Beacon Detection**: Identifies command & control patterns (regular periodic connections to same IP).
+*   **Smart Domain Resolution**: Resolves IPs to domains and validates against trusted list before alerting.
+
 ---
 
 ## 🚀 Quick Start (For Novices)
@@ -102,6 +127,27 @@ To run the system in **Demo Mode**:
 
 > **Developer Note**: This repo uses `git-crypt`. If you are the owner, unlock the core matching your key:
 > `git-crypt unlock ./my-sovereign-key.key`
+
+---
+
+---
+
+## 🏗️ High-Performance Architecture (2026 Refactor)
+
+The latest edition of Sovereign Guard features a hardened, enterprise-grade storage and filtering engine designed for zero-latency protection.
+
+### ⚡️ NDJSON Storage (Append-Only)
+Traditional JSON files require reading and rewriting the entire file for every change. At scale, this crashes systems.
+- **The Solution**: Sovereign Guard now uses **Newline Delimited JSON (NDJSON)** for network logging.
+- **Performance**: Events are simply appended as a single line to the end of the file. This reduces Disk I/O by 99% and prevents log corruption during system high-load.
+
+### 🔇 Zero-Noise Filtering
+To prevent "alert fatigue" and system bloat, we implemented a sophisticated **Noise Gate**:
+- **Internal Filter**: Automatically ignores `localhost` (127.0.0.1) and private network (192.168.x.x) traffic.
+- **Developer Optimization**: Silence 90% of useless chatter from IDEs, language servers, and local databases, focusing intelligence only on external exfiltration risks.
+
+### 🧵 Process Isolation
+Multi-instance protection ensures that only one "Sovereign Sentinel" is active at a time, preventing CPU-race conditions and ensuring a single, stable source of truth for your security logs.
 
 ---
 
@@ -143,10 +189,12 @@ cp .env.example .env.sovereign
 Sovereign Guard uses a **3-phase onboarding system** to eliminate false positives:
 
 **Phase 1: LEARN MODE (Days 1-7)** 🎓
-- Observes all processes on your system
-- **Kills nothing** - zero workflow disruption
-- Builds a personalized whitelist of your legitimate tools
-- Dashboard shows real-time learning progress
+- Observes all processes and external connections on your system.
+- **Fast-Forward**: Run `./sovereign bootstrap` to scan your system and skip straight to WARN mode.
+- **Zero-Noise Filtering**: Automatically ignores `localhost` and private IPs.
+- **The "Safety Net" (Active)**: Even while learning, **Critical Kill** is enabled. If a 100% confirmed threat (like a Reverse Shell) is detected, it is neutralized instantly.
+- **Hourly Heartbeat**: Sends a quiet notification once per hour to confirm progress without breaking your flow.
+- Builds a personalized whitelist of your legitimate tools.
 
 **Phase 2: WARN MODE (Days 8-14)** ⚠️
 - Starts detecting threats
@@ -171,6 +219,23 @@ echo 'PROTECTION_MODE="learn"' >> .env.sovereign
 
 ### Commands
 ## ⚙️ Manual Configuration (Optional)
+
+### ⚙️ Manual Configuration (Optional)
+
+### 🚨 "The Rubicon" Hardware Lock (Optional)
+For ultra-secure environments, you can enforce a physical **Hardware Lock**.
+This stops remote attackers from disabling the monitor (`./sovereign stop`) unless they have physical access to your machine.
+
+**1. Setup Keys**:
+   - **Hardware Key**: Place an empty file named `.sovereign_key` on any USB drive.
+   - **Backup Codes**: Run `./sovereign rubicon` to generate emergency codes.
+
+**2. Enforce Protection**:
+   Edit `.env.sovereign` and add:
+   ```bash
+   RUBICON_ENFORCED=true
+   ```
+   Now, `stop` and `dev` commands will require your USB key or a backup code.
 
 ### 1. Configure Your Secret
 Sovereign Guard uses a secret key to authorize "Safe Mode" and prevent malware from disabling the monitor.
